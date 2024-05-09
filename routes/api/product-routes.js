@@ -39,35 +39,30 @@ router.get('/:id', async (req, res) => {
 
 // create new product
 router.post('/', async (req, res) => {
-  /* req.body should look like this...
-    {
-      product_name: "Basketball",
-      price: 200.00,
-      stock: 3,
-      tagIds: [1, 2, 3, 4]
+  try {
+    const product = await Product.create(req.body);
+
+    // Check if req.body.tagIds exists
+    if (req.body.tagIds) {
+      const productTagIdArr = Object.values(req.body.tagIds).map((tag_id) => {
+        return {
+          product_id: product.id,
+          tag_id: tag_id,
+        };
+      });
+
+      // Bulk create product tags
+      await ProductTag.bulkCreate(productTagIdArr);
     }
-  */
-  Product.create(req.body)
-    .then((product) => {
-      // if there's product tags, we need to create pairings to bulk create in the ProductTag model
-      if (req.body.tagIds.length) {
-        const productTagIdArr = req.body.tagIds.map((tag_id) => {
-          return {
-            product_id: product.id,
-            tag_id,
-          };
-        });
-        return ProductTag.bulkCreate(productTagIdArr);
-      }
-      // if no product tags, just respond
-      res.status(200).json(product);
-    })
-    .then((productTagIds) => res.status(200).json(productTagIds))
-    .catch((err) => {
-      console.log(err);
-      res.status(400).json(err);
-    });
+
+    // Send response
+    res.status(200).json(product);
+  } catch (err) {
+    console.error(err);
+    res.status(400).json(err);
+  }
 });
+
 
 // update product
 router.put('/:id', (req, res) => {
@@ -76,8 +71,9 @@ router.put('/:id', (req, res) => {
     where: {
       id: req.params.id,
     },
+    returning: true,
   })
-    .then((product) => {
+    .then(([count, [updatedProduct]]) => {
       if (req.body.tagIds && req.body.tagIds.length) {
         
         ProductTag.findAll({
@@ -106,7 +102,7 @@ router.put('/:id', (req, res) => {
         });
       }
 
-      return res.json(product);
+      return res.json(updatedProduct);
     })
     .catch((err) => {
       // console.log(err);
